@@ -10,11 +10,13 @@ class Scrapper:
 
     cursor: sqlite3.Cursor
     soup: BeautifulSoup
+    connection: sqlite3.Connection
 
     def __init__(self, url: str, db: str) -> None:
         conn = sqlite3.connect(db)
         html_doc = requests.get(url)
 
+        self.connection = conn
         self.cursor = conn.cursor()
         self.soup = BeautifulSoup(html_doc.content, "html.parser")
 
@@ -56,14 +58,17 @@ class Scrapper:
         self.init_tables()
 
         visited = set()
-        for elem in self.soup.select('a[href^="/peliculas/"][href$=".html"]'):
+        for i, elem in enumerate(
+            self.soup.select('a[href^="/peliculas/"][href$=".html"]')
+        ):
             url_movie = "https://www.elseptimoarte.net" + elem["href"]
             if url_movie in visited:
                 continue
             visited.add(url_movie)
             movie_data = self.get_movie(url_movie)
             print("Cargando...")
-            self.insert_movie(movie_data)
+            self.insert_movie(movie_data, i)
+        self.connection.commit()
         self.cursor.execute("SELECT COUNT(*) FROM Movies")
         return self.cursor.fetchone()[0]
 
@@ -101,7 +106,7 @@ class Scrapper:
 
         return [title, original_title, country, spain_date, director, genre]
 
-    def insert_movie(self, movie_data: list) -> None:
+    def insert_movie(self, movie_data: list, i: int) -> None:
         """Takes the list with all the needed extracteed data about a movie
         and inserts the film in the movies.db"""
 
@@ -112,15 +117,32 @@ class Scrapper:
         for country in movie_data[2]:
             self.cursor.execute(
                 f"INSERT INTO Countries(movie_id, country)\
-             VALUES ('{movie_data[0]}', '{country}')"
+             VALUES ('{i}', '{country}')"
             )
         for director in movie_data[4]:
             self.cursor.execute(
                 f"INSERT INTO Directors(movie_id, director)\
-             VALUES ('{movie_data[0]}', '{director}')"
+             VALUES ('{i}', '{director}')"
             )
         for genre in movie_data[5]:
             self.cursor.execute(
                 f"INSERT INTO Genres(movie_id, genre)\
-             VALUES ('{movie_data[0]}', '{genre}')"
+             VALUES ('{i}', '{genre}')"
             )
+
+    def show_movies(self) -> dict:
+        """Returns a dictionary where the key is the movies' name
+        and the values are two sets with the countries and directors"""
+
+        self.cursor.execute(
+            """SELECT Movies.title, Countries.country,Directors.director
+            FROM Movies
+            INNER JOIN Countries
+            ON Countries.movie_id = Movies.id
+            INNER JOIN Directors
+            ON Directors.movie_id = Movies.id
+            ORDER BY Movies.title"""
+        )
+        results = self.cursor.fetchall()
+        movies = funcionalities.format_movies(results)
+        return movies
