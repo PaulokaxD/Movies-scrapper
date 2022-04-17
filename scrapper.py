@@ -5,7 +5,8 @@ import funcionalities
 
 
 class Scrapper:
-    """ooo"""
+    """Get the new movies in the elseptimoarte.net webpage and
+    stores them into a database"""
 
     cursor: sqlite3.Cursor
     soup: BeautifulSoup
@@ -49,7 +50,7 @@ class Scrapper:
                 FOREIGN KEY (movie_id) REFERENCES Movies(id));"""
         )
 
-    def getMovies(self) -> None:
+    def update_database(self) -> str:
         """Updates the movies.bd"""
 
         self.init_tables()
@@ -61,8 +62,10 @@ class Scrapper:
                 continue
             visited.add(url_movie)
             movie_data = self.get_movie(url_movie)
-            print(movie_data)
+            print("Cargando...")
             self.insert_movie(movie_data)
+        self.cursor.execute("SELECT COUNT(*) FROM Movies")
+        return self.cursor.fetchone()[0]
 
     def get_movie(self, url_movie: str) -> list:
         """Takes an url and returns a list with all the needed data
@@ -121,7 +124,3 @@ class Scrapper:
                 f"INSERT INTO Genres(movie_id, genre)\
              VALUES ('{movie_data[0]}', '{genre}')"
             )
-
-
-scrapper = Scrapper("https://www.elseptimoarte.net/estrenos/", "movies.db")
-scrapper.getMovies()
